@@ -1,0 +1,317 @@
+---
+title: "Data624_HW1"
+author: "Alexis Mekueko"
+date: "9/11/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+
+```{r load-packages, results='hide',warning=FALSE, message=FALSE, echo=FALSE}
+
+#library(tidyverse) #loading all library needed for this assignment
+#remove.packages(tidyverse)
+#library(openintro)
+#library(lahman) #database for baseball
+library(caret)
+library(knitr)
+#library(markdown)
+#library(rmarkdown)
+library(dplyr)
+library(tidyr)
+library(naniar)
+library(reshape)
+library(ggplot2)
+library(qqplotr)
+library(stats)
+library(statsr)
+library(GGally)
+library(pdftools)
+library(correlation)
+library(Metrics)
+library(e1071)
+library(rocc)
+library(pROC)
+library(plm)
+library(car)
+#library(VIF)
+#library(MASS)
+#library(AICcmodavg)
+#library(gridExtra)
+#library(ggpubr)
+#library(glmulti)
+
+#install.packages("datarobot", dependencies = TRUE)
+
+library(datarobot)
+#install.packages("fpp3", dependencies = TRUE)
+library(fpp3)
+#install.packages("USgas", dependencies = TRUE)
+library(USgas)
+
+```
+
+
+
+[Github Link](https://github.com/ATM1000k/Data608_HW1)
+[Web Link](https://rpubs.com/amekueko/807900)
+
+
+
+
+## Exercise 1
+
+Use the help function to explore what the series gafa_stock, PBS, vic_elec and pelt represent.Use autoplot() to plot some of the series in these data sets. What is the time interval of each series?
+
+```{r, echo=FALSE}
+
+#View(inc)
+#head(inc)
+#summary(inc)
+#help(gafa_stock)
+
+
+#??gafa_stock
+#help("gafa_stock")
+print("Historical stock prices from 2014-2018 for Google, Amazon, Facebook and Apple. All prices are in $USD.")
+#??PBS
+#help(PBS)
+print("PBS: maptools::SpatialLines2PolySet		Convert sp line and polygon objects to PBSmapping PolySet objects pbapply::pbapply		Adding Progress Bar to '*apply' Functions plm::pbsytest		Bera, Sosa-Escudero and Yoon Locally-Robust Lagrange Multiplier Tests for Panel Models and Joint Test by Baltagi and Liraster::readStart		Helper functions for programming splines::predict.bSpline		Evaluate a Spline at New Values of x")
+#??pelt
+#help(pelt)
+print("Hudson Bay Company trading records for Snowshoe Hare and Canadian Lynx furs from 1845 to 1935. This data contains trade records for all areas of the company.")
+#??vic_elec
+#help("vic_elec")
+print("Half-hourly electricity demand for Victoria, Australia")
+#??mtcars
+
+
+#ConnectToDataRobot(endpoint = "YOUR-ENDPOINT-HERE", token = "YOUR-API_TOKEN-HERE")
+#GetProjectStatus(data(PBS))
+autoplot(gafa_stock, Volume)
+#max(gafa_stock$Date)
+#min(gafa_stock$Date)
+print("The timeline for gafa_stock series on volume stock goes from 2014-01-02 to 2018-12-31")
+
+autoplot(PBS,Scripts)
+#min(PBS$Month)
+
+print("The PBS/Cost/Scripts didn't auotoplot but the timeline goes from July 1991 to June 2008")
+
+
+
+autoplot(vic_elec, Demand)
+#min(vic_elec$Time)
+print("The autoplot is almost identical each year. The timeline for vic_elec series on power demand goes from 2012-01-01 AEDT to 2014-12-31 23:30:00 AEDT")
+ 
+autoplot(pelt, Hare)
+#min(pelt$Year)
+print("The timeline for pel/Hare series goes from 1845 to 1935")
+
+
+```
+
+## Use filter() to find what days corresponded to the peak closing price for each of the four stocks in gafa_stock.
+
+```{r }
+
+view(gafa_stock)
+
+sum(is.na(gafa_stock))
+
+gafa_stock_close <- gafa_stock %>%
+  dplyr::select(Symbol,Date,Close) %>%
+  group_by(Symbol)%>%
+  filter(Close == max(Close)) %>%
+  arrange(desc(Close))
+
+gafa_stock_close
+
+  #%>%filter(complete.cases(.))
+
+
+```
+
+## Exercise 3
+
+Download the file tute1.csv from the book website, open it in Excel (or some other spreadsheet application), and review its contents. You should find four columns of information. Columns B through D each contain a quarterly series, labelled Sales, AdBudget and GDP. Sales contains the quarterly sales for a small company over the period 1981-2005. AdBudget is the advertising budget and GDP is the gross domestic product. All series have been adjusted for inflation.
+
+a-You can read the data into R with the following script:
+
+```{r}
+
+tute1 <- readr::read_csv("tute1.csv")
+View(tute1)
+sum(is.na(tute1))
+
+
+```
+
+b-Convert the data to time series
+
+```{r }
+
+mytimeseries <- tute1 %>%
+  mutate(Quarter = yearmonth(Quarter)) %>%
+  as_tsibble(index = Quarter)
+
+
+```
+
+c-Construct time series plots of each of the three series
+
+```{r }
+
+mytimeseries %>%
+  pivot_longer(-Quarter) %>%
+  ggplot(aes(x = Quarter, y = value, colour = name)) +
+  geom_line() +
+  facet_grid(name ~ ., scales = "free_y")
+
+```
+
+Check what happens when you don’t include facet_grid().
+
+
+```{r }
+
+mytimeseries %>%
+  pivot_longer(-Quarter) %>%
+  ggplot(aes(x = Quarter, y = value, colour = name)) +
+  geom_line() 
+
+```
+### The only difference is the groupinng. I think it would be redondant to use facet_grid if the the three variables have close range values.
+
+
+## Exercise 4
+
+The USgas package contains data on the demand for natural gas in the US.
+
+a-Install the USgas package.
+b-Create a tsibble from us_total with year as the index and state as the key.
+c-Plot the annual natural gas consumption by state for the New England area (comprising the states of Maine, Vermont, New Hampshire, Massachusetts, Connecticut and Rhode Island).
+
+
+```{r}
+
+
+view(us_total)
+glimpse(us_total)
+
+us_total1 <- us_total %>%
+  as_tibble(index = year, key = state)%>%
+  filter(state == 'Connecticut' | state == 'Maine' | state == 'Massachusetts' | state == 'New Hampshire' | state == 'Rhode Island' | state == 'Vermont')#%>%
+
+head(us_total1)
+
+ggplot(data= us_total1, aes(x = year, y = y, col = state)) + 
+  geom_line()+
+   labs(x='Year', y="Natural Gas Consumption", title='Annual Natural Gas Consumption by State Region: case of New England Region')
+
+
+
+```
+
+## Exercise 5
+
+a-Download tourism.xlsx from the book website and read it into R using readxl::read_excel().
+b-Create a tsibble which is identical to the tourism tsibble from the tsibble package.
+
+```{r}
+
+tourism <- readxl::read_excel("tourism.xlsx")
+View(tourism)
+#colSums(is.na(tourism))%>% kable()
+sum(is.na(tourism))
+# tourism1 <- tourism %>%
+#   mutate(Quarter = yearquarter(as.Date(tourism$Quarter)))%>%
+#   as_tsibble( index = Quarter, key = c(Region, State, Purpose))
+
+tourism$Quarter <- yearquarter(as.Date(tourism$Quarter))
+glimpse(tourism)
+tourism1 <- tourism %>%
+   as_tsibble( index = Quarter, key = c(Region, State, Purpose))
+
+```
+
+c-Find what combination of Region and Purpose had the maximum number of overnight trips on average.
+
+
+```{r}
+
+tourism2 <- select( tourism, Region,Purpose, Trips) #something wrong with select....I think I was calling tourism1
+
+
+# tourism2c <- tourism2 %>%
+#   #dplyr::select(Region,Purpose, Trips) %>% #something wrong with select....
+#   group_by(Region,Purpose)%>%
+#   summarise(MeanTrip == mean(Trips)) %>%
+#   filter(MeanTrip == max(MeanTrip))%>%
+#   arrange(desc(MeanTrip))
+# tourism2c
+print("running into error running the above code, reason might be the datatype of Quarter, so I went back to adjust the datatype")
+
+#rlang::last_error()
+#rlang::last_trace()
+
+```
+
+d-Create a new tsibble which combines the Purposes and Regions, and just has total trips by State.
+
+
+```{r}
+
+tourism3 <- tourism %>%
+  #dplyr::select(Region,Purpose, Trips) %>%
+  group_by(Region, Purpose)
+  tourism1$RegionPurpose <- paste(tourism1$Region, tourism1$Purpose)
+  
+# tourism3d <- tourism3 %>%
+#   group_by(State) %>%
+#   mutate(SumTripByState == sum(Trips)) %>%
+#   as_tsibble( index = Quarter, key = c(Region, State, RPurpose))
+#   #arrange(desc(MeanTrip))
+# tourism3d
+print("running into error running the above code, reason might be the datatype")
+
+
+```
+
+## Exercise 6
+
+Monthly Australian retail data is provided in aus_retail. Select one of the time series as follows (but choose your own seed value):
+
+
+Explore your chosen retail time series using the following functions:
+
+Can you spot any seasonality, cyclicity and trend? What do you learn about the series?
+
+
+```{r}
+
+set.seed(53566)
+myseries <- aus_retail %>%
+  filter(`Series ID` == sample(aus_retail$`Series ID`,1))
+
+autoplot(myseries)
+gg_season(myseries)
+gg_subseries(myseries)
+gg_lag(myseries)
+
+myseries %>%
+  ACF(Turnover)%>%
+  autoplot()
+print("autoplot() gives a global view for the overall timeline, the trend line shows turnover never stop going wild. gg_season() allow a zoom in on the timeline to observe the turnover progression by month. gg_subseries() and gg_lag() goes a little more deeper than other function should one interested in looking up particular trend.")
+
+```
+
+
+
+
+
